@@ -21,7 +21,7 @@ class PlannerAgent(BaseAgent):
         from agents.prompts import PLANNER_SYSTEM_PROMPT
         return PLANNER_SYSTEM_PROMPT.format(tools_description=registry.list_tools())
 
-    def plan(self, user_query: str) -> dict:
+    def plan(self, user_query: str) -> dict[str, Subtask]:
         """生成计划任务，返回 Subtask 字典"""
         # output_schema 作为示例格式传递给 structured_invoke，
         # 该方法会将其序列化后追加到 prompt 中，引导 LLM 按此结构输出
@@ -44,13 +44,21 @@ class PlannerAgent(BaseAgent):
         return self.plan_to_subtask_map(res)
 
     @staticmethod
-    def plan_to_subtask_map(plan: dict) -> dict:
+    def plan_to_subtask_map(plan: dict) -> dict[str, Subtask]:
         """将 Planner 输出转换为 Subtask 字典"""
-        # 防御：plan 为空或缺少 subtasks 时返回空字典，避免 KeyError
-        if not plan or "subtasks" not in plan:
+        if not plan:
             return {}
+
+        # 兼容 LLM 可能将 key 输出为 tasks / subtasks / 或直接是 dict
+        subtasks = plan.get("subtasks") or plan.get("tasks")
+        if not subtasks:
+            return {}
+
+        # 兼容 subtasks 是 list 或 dict（以 id 为 key）
+        if isinstance(subtasks, dict):
+            subtasks = list(subtasks.values())
         task_map = {}
-        for st in plan["subtasks"]:
+        for st in subtasks:
             # 跳过缺少 id 的无效子任务
             if "id" not in st:
                 continue

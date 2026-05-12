@@ -1,5 +1,6 @@
 from enum import Enum
-from typing import TypedDict, List, Optional, Dict
+from typing import TypedDict, List, Optional, Dict, Annotated
+import operator
 
 
 class SubtaskStatus(str,Enum):
@@ -8,6 +9,7 @@ class SubtaskStatus(str,Enum):
     DONE = "done"
     FAILED = "failed"
     BLOCKED = "blocked"  # 依赖未满足
+
 
 class Subtask(TypedDict):
     id: str
@@ -23,8 +25,8 @@ class Subtask(TypedDict):
     review_score: float
 
 
-class OrchestratorState(TypedDict):
-    """LangGraph 全局状态"""
+class OrchestratorState(TypedDict, total=False):
+    """LangGraph 全局状态，total=False 允许按需传入字段"""
     # 任务基本信息
     task_id: str
     original_query: str
@@ -33,6 +35,9 @@ class OrchestratorState(TypedDict):
     plan: dict                    # {"subtasks": [...], "parallel_groups": [...]}
     subtask_map: Dict[str, Subtask]
     parallel_groups: List[List[str]]
+
+    # 执行上下文 — 按 subtask_id 累积执行结果
+    context: Dict[str, dict]
 
     # 当前执行上下文
     current_subtask_id: str

@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Optional
 from dotenv import load_dotenv
 
-from langchain_openai import OpenAI, ChatOpenAI
+from langchain_openai import ChatOpenAI
 
 load_dotenv()
 
@@ -43,6 +43,10 @@ class BaseAgent(ABC):
     def structured_invoke(self, user_message: str, output_schema: dict, context: dict = None) -> dict:
         """调用 LLM 并返回结构化 JSON"""
         import json
+        import logging
+        import re
+
+        logger = logging.getLogger(__name__)
 
         prompt = self.system_prompt
         prompt += f"\n\n你必须返回 JSON，格式如下：\n{json.dumps(output_schema, ensure_ascii=False, indent=2)}"
@@ -55,5 +59,37 @@ class BaseAgent(ABC):
         elif "```" in raw:
             raw = raw.split("```")[1].split("```")[0]
 
-        return json.loads(raw.strip())
+        raw = raw.strip()
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            # 尝试修复常见的 LLM 输出错误
+            fixed = self._repair_json(raw)
+            try:
+                return json.loads(fixed)
+            except json.JSONDecodeError:
+                logger.warning("LLM 返回了无法解析的 JSON，原始内容:\n%s", raw)
+                raise ValueError(f"LLM 返回了无法解析的 JSON，请检查模型输出质量。原始内容前200字符: {raw[:200]}")
+
+    @staticmethod
+    def _repair_json(raw: str) -> str:
+        """修复常见的 JSON 格式错误"""
+        import re
+        # 去掉尾部多余的逗号：{"a": 1,} → {"a": 1}
+        raw = re.sub(r',\s*}', '}', raw)
+        raw = re.sub(r',\s*]', ']', raw)
+        # 去掉首尾的非 JSON 字符（如 LLM 可能输出 "这是结果：\n{...}"）
+        first_brace = raw.find('{')
+        first_bracket = raw.find('[')
+        if first_brace == -1 and first_bracket == -1:
+            return raw
+        start = min(i for i in [first_brace, first_bracket] if i != -1)
+        raw = raw[start:]
+        # 匹配到最后一个 } 或 ]
+        last_brace = raw.rfind('}')
+        last_bracket = raw.rfind(']')
+        end = max(last_brace, last_bracket)
+        if end != -1:
+            raw = raw[:end + 1]
+        return raw
 
