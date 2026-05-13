@@ -75,17 +75,16 @@ class BaseAgent(ABC):
     def _repair_json(raw: str) -> str:
         """修复常见的 JSON 格式错误"""
         import re
-        # 去掉尾部多余的逗号：{"a": 1,} → {"a": 1}
+        # 去掉尾部多余的逗号
         raw = re.sub(r',\s*}', '}', raw)
         raw = re.sub(r',\s*]', ']', raw)
-        # 去掉首尾的非 JSON 字符（如 LLM 可能输出 "这是结果：\n{...}"）
+        # 去掉 JSON 之外的前缀/后缀文字
         first_brace = raw.find('{')
         first_bracket = raw.find('[')
         if first_brace == -1 and first_bracket == -1:
             return raw
         start = min(i for i in [first_brace, first_bracket] if i != -1)
         raw = raw[start:]
-        # 匹配到最后一个 } 或 ]
         last_brace = raw.rfind('}')
         last_bracket = raw.rfind(']')
         end = max(last_brace, last_bracket)
