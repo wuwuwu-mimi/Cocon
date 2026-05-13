@@ -36,20 +36,26 @@ _main_loop: asyncio.AbstractEventLoop | None = None
 # 发送消息
 # ---------------------------------------------------------------------------
 
-def send_text(chat_id: str, text: str):
-    """发送文本消息到群聊或私聊"""
+def send_markdown_card(chat_id: str, markdown_content: str):
+    """发送飞书富文本卡片（支持完整 Markdown 渲染）"""
     if not chat_id:
         return
-    if len(text) > 4000:
-        text = text[:4000] + "\n...(truncated)"
+    # 截断过长内容（飞书卡片 max 30KB）
+    if len(markdown_content) > 15000:
+        markdown_content = markdown_content[:15000] + "\n\n> ...(内容过长已截断)"
+
+    card = {
+        "config": {"wide_screen_mode": True},
+        "elements": [{"tag": "markdown", "content": markdown_content}]
+    }
 
     req = CreateMessageRequest.builder() \
         .receive_id_type("chat_id") \
         .request_body(
             CreateMessageRequestBody.builder()
             .receive_id(chat_id)
-            .msg_type("text")
-            .content(json.dumps({"text": text}))
+            .msg_type("interactive")
+            .content(json.dumps(card, ensure_ascii=False))
             .build()
         ).build()
     _client.im.v1.message.create(req)
@@ -80,7 +86,7 @@ def on_message(event: P2ImMessageReceiveV1) -> None:
     logger.info("[feishu] chat=%s text=%s", chat_id, text[:100])
 
     if not text:
-        send_text(chat_id, "请告诉我你想做什么？例如：搜索最新Python框架")
+        send_markdown_card(chat_id, "请告诉我你想做什么？例如：搜索最新Python框架")
         return
 
     # 后台异步执行 pipeline（lark 回调在独立线程，用 call_soon_threadsafe 提交到主事件循环）
@@ -93,10 +99,10 @@ def on_message(event: P2ImMessageReceiveV1) -> None:
             final = result.get("final_output", "")
             if not final:
                 final = "未能生成结果。"
-            send_text(chat_id, final)
+            send_markdown_card(chat_id, final)
         except Exception as e:
             logger.error("[feishu] pipeline: %s", str(e))
-            send_text(chat_id, f"内部错误: {str(e)[:200]}")
+            send_markdown_card(chat_id, f"内部错误: {str(e)[:200]}")
 
     if _main_loop:
         asyncio.run_coroutine_threadsafe(run(), _main_loop)
