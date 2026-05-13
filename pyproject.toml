@@ -3,6 +3,7 @@ name = "cocon"
 version = "0.1.0"
 requires-python = ">=3.14"
 dependencies = [
+    "arrow>=1.4.0",
     "dotenv>=0.9.9",
     "fastapi>=0.136.1",
     "langchain-openai>=1.2.1",
