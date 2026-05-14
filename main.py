@@ -17,10 +17,15 @@ app = FastAPI()
 
 @app.on_event("startup")
 async def startup():
-    """保存主事件循环引用，启动飞书 WebSocket 长连接"""
+    """保存主事件循环引用，启动飞书 WebSocket + MCP 工具"""
     feishu_module._main_loop = asyncio.get_running_loop()
     start_event_listener()
-    logging.getLogger(__name__).info("飞书长连接已启动")
+
+    # 加载 MCP 工具
+    from tools import init_mcp
+    await init_mcp()
+
+    logging.getLogger(__name__).info("启动完成")
 
 
 @app.get("/")

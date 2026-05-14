@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "github-trending": {
+      "command": "python",
+      "args": ["-m", "github_trending_mcp"],
+      "env": {}
+    }
+  }
+}
+
