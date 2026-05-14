@@ -44,14 +44,13 @@ def _find_waiting_human(result: dict) -> list[dict]:
 # 任务提交
 # ---------------------------------------------------------------------------
 
-@router.post("/task")
-async def submit_task(query: str):
-    """提交任务，返回 thread_id。如有子任务需人工审批，返回审批信息"""
+@router.post("/task/submit")
+async def submit_task_v2(query: str):
+    """提交任务（规范化端点），返回 thread_id"""
     thread_id = uuid.uuid4().hex[:12]
     config = {"configurable": {"thread_id": thread_id}}
 
     result = await graph.ainvoke({"original_query": query}, config)
-
     waiting = _find_waiting_human(result)
 
     return {
@@ -60,7 +59,32 @@ async def submit_task(query: str):
         "status": result.get("status", "executing"),
         "final_output": result.get("final_output", ""),
         "subtasks": _build_summary(result),
-        "waiting_human": waiting,  # 为空列表则无需审批
+        "waiting_human": waiting,
+    }
+
+
+# 旧端点保留兼容
+@router.post("/task")
+async def submit_task_legacy(query: str):
+    """[已废弃] 请使用 POST /v1/task/submit"""
+    return await submit_task_v2(query)
+
+
+@router.get("/task/{thread_id}/status")
+async def get_task_status(thread_id: str):
+    """查询任务状态（通过 LangGraph checkpoint）"""
+    config = {"configurable": {"thread_id": thread_id}}
+    state = await graph.aget_state(config)
+
+    if not state or not state.values:
+        raise HTTPException(status_code=404, detail=f"任务 {thread_id} 不存在或已过期")
+
+    return {
+        "ok": True,
+        "thread_id": thread_id,
+        "status": state.values.get("status", "unknown"),
+        "final_output": state.values.get("final_output", ""),
+        "subtasks": _build_summary(state.values),
     }
 
 

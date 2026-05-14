@@ -40,9 +40,9 @@ class ExecutorAgent(BaseAgent):
     # ------------------------------------------------------------------
 
     async def _run_tool(self, tool_name: str, args: dict) -> dict:
-        """调用已注册的工具，直接 await 避免 asyncio.run 事件循环冲突"""
+        """调用已注册的工具，传入 caller_id 做 ACL 校验"""
         try:
-            result = await registry.call(tool_name, **args)
+            result = await registry.call(tool_name, caller_id=self.name, **args)
             return result
         except Exception as e:
             return {"ok": False, "error": f"工具调用异常: {str(e)}"}

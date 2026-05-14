@@ -77,7 +77,7 @@ async def execute_one_node(state: OrchestratorState) -> dict:
     pending = {sid for sid, st in subtask_map.items()
                if st.get("status") == "pending"}
     completed = {sid for sid, st in subtask_map.items()
-                 if st.get("status") in ("done", "failed", "blocked")}
+                 if st.get("status") in ("done", "failed", "blocked", "done_with_issues")}
     all_ids = set(subtask_map.keys())
 
     # 找出所有依赖已满足的任务
@@ -242,7 +242,8 @@ def continue_node(state: OrchestratorState) -> dict:
                if st.get("status") == "pending"}
     if pending:
         return {}
-    done_count = sum(1 for st in subtask_map.values() if st.get("status") == "done")
+    done_count = sum(1 for st in subtask_map.values()
+                     if st.get("status") in ("done", "done_with_issues"))
     logger.info("[continue] 执行完毕: %d/%d 成功", done_count, len(subtask_map))
     return {"status": "done"}
 
@@ -308,18 +309,26 @@ async def replan_node(state: OrchestratorState) -> dict:
 
 
 def human_approval_node(state: OrchestratorState) -> dict:
-    """人工审批节点：自动通过（接受不完美结果），不再阻塞流程"""
+    """人工审批节点：自动接受质量不达标的子任务，但标记为 done_with_issues"""
     subtask_map = state.get("subtask_map", {})
     current_id = state.get("current_subtask_id", "")
     subtask = subtask_map.get(current_id, {})
 
     score = subtask.get("review_score", 0)
-    # 自动接受：标记为 done 但记录审阅结果
-    subtask["status"] = "done"
-    subtask["review_status"] = "auto_approved"
-    logger.info("[human_approval] %s 自动通过 (score=%.2f)，已接受不完美结果", current_id, score)
+    # 将 reviewer 反馈注入 result，供 aggregator 生成"部分成功"叙述
+    result = subtask.get("result") or {}
+    result["_issues"] = {
+        "review_score": score,
+        "retry_count": subtask.get("retry_count", 0),
+    }
 
-    return {"subtask_map": subtask_map, "human_interrupt": False}
+    subtask["status"] = "done_with_issues"
+    subtask["result"] = result
+    subtask["review_status"] = "auto_approved"
+    logger.info("[human_approval] %s 标记为 done_with_issues (score=%.2f)，聚合时将标注数据缺失",
+                current_id, score)
+
+    return {"subtask_map": subtask_map}
 
 
 async def aggregator_node(state: OrchestratorState) -> dict:

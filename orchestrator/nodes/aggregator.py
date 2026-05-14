@@ -33,7 +33,9 @@ class AggregatorAgent(BaseAgent):
 ## 子任务执行摘要
 {summary}
 
-请整合以上所有信息，生成一份完整的最终回答。"""
+> 注意："[部分成功]" 表示该子任务虽执行完成但数据质量偏低（搜索不完整、信息缺失等）。
+> 生成回答时，对 [部分成功] 的部分坦诚标注"该部分数据可能不完整"或"基于有限信息"，
+> 不要编造缺失的数据。优先呈现 [成功] 部分的内容。"""
 
         try:
             response = self.invoke(prompt)
@@ -52,9 +54,9 @@ class AggregatorAgent(BaseAgent):
             result = st.get("result") or {}
 
             status_icon = {
-                "done": "[成功]", "failed": "[失败]",
-                "blocked": "[阻塞]", "pending": "[未执行]",
-                "reviewing": "[审查中]",
+                "done": "[成功]", "done_with_issues": "[部分成功]",
+                "failed": "[失败]", "blocked": "[阻塞]",
+                "pending": "[未执行]", "reviewing": "[审查中]",
             }.get(status, f"[{status}]")
 
             data = result.get("data", "")

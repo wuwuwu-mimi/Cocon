@@ -9,6 +9,7 @@ class SubtaskStatus(str,Enum):
     DONE = "done"
     FAILED = "failed"
     BLOCKED = "blocked"  # 依赖未满足
+    DONE_WITH_ISSUES = "done_with_issues"  # 质量不达标但已接受
 
 
 class Subtask(TypedDict):
