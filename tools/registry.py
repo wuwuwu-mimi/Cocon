@@ -37,10 +37,14 @@ class ToolRegistry:
             for name, schema in self._schemas.items()
         ]
 
-    async def call(self, name: str, **kwargs) -> dict:
-        """调用工具"""
+    async def call(self, name: str, caller_id: str = "", **kwargs) -> dict:
+        """调用工具，可选 caller_id 做 ACL 校验"""
         if name not in self._tools:
             return {"ok": False, "error": f"未知工具: {name}"}
+
+        # ACL 检查：有 ACL 配置且 caller 不在白名单 → 拒绝
+        if name in self._acl and caller_id not in self._acl[name]:
+            return {"ok": False, "error": f"permission_denied: {caller_id} 无权调用 {name}"}
 
         try:
             result = await asyncio.wait_for(

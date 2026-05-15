@@ -1,10 +1,11 @@
+import asyncio
 import logging
 
 from fastapi import FastAPI
-# 导入 tasks 模块里的 router
 from api.tasks import router as tasks_router
+from api.feishu import router as feishu_router, start_event_listener
+import api.feishu as feishu_module
 
-# 应用入口配置日志，模块内使用 logging.getLogger(__name__) 获取 logger
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
@@ -13,12 +14,29 @@ logging.basicConfig(
 
 app = FastAPI()
 
+
+@app.on_event("startup")
+async def startup():
+    """保存主事件循环引用，启动飞书 WebSocket + MCP 工具"""
+    feishu_module._main_loop = asyncio.get_running_loop()
+    start_event_listener()
+
+    # 加载 MCP 工具
+    from tools import init_mcp
+    await init_mcp()
+
+    logging.getLogger(__name__).info("启动完成")
+
+
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
+
 
 @app.get("/hello/{name}")
 async def say_hello(name: str):
     return {"message": f"Hello {name}"}
 
+
 app.include_router(tasks_router)
+app.include_router(feishu_router)
